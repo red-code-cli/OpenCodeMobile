@@ -76,10 +76,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val experiments = mutableStateMapOf<String, Boolean>().apply {
         experimentKeys.forEach { put(it, it !in setOf("Inbox Sidebar", "Sound Effects")) }
     }
-    var allExperiments by mutableStateOf(true)
+    private var _allExperiments by mutableStateOf(true)
+    val allExperiments: Boolean get() = _allExperiments
 
     fun setAllExperiments(v: Boolean) {
-        allExperiments = v
+        _allExperiments = v
         experimentKeys.forEach { experiments[it] = v }
         viewModelScope.launch { repo.prefsStore.setExperiments(experiments.toMap()) }
     }
