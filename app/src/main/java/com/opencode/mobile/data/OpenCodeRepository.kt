@@ -217,6 +217,8 @@ class OpenCodeRepository(
         }
     }
 
+    suspend fun redeemPairing(url: String, code: String): Result<String> = v2Backend.redeemPairing(url, code)
+
     suspend fun interruptSession(sessionId: String): Boolean {
         val profile = _activeProfile.value ?: return false
         val url = profile.activeUrl ?: return false

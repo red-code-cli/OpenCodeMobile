@@ -119,7 +119,7 @@ fun ChatScreen(vm: AppViewModel, onMenu: () -> Unit) {
                     }
                 }
             }
-            AnimatedVisibility(
+            androidx.compose.animation.AnimatedVisibility(
                 !atBottom, Modifier.align(Alignment.BottomEnd).padding(18.dp),
                 enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()
             ) {

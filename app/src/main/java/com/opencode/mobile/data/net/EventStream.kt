@@ -72,7 +72,7 @@ class EventStream(
 
                         val source = response.body?.byteStream() ?: return@use
                         val reader = BufferedReader(InputStreamReader(source))
-                        var line: String?
+                        var line: String? = null
                         while (isActive && reader.readLine().also { line = it } != null) {
                             lastEventTime = System.currentTimeMillis()
                             val cur = line?.trim().orEmpty()

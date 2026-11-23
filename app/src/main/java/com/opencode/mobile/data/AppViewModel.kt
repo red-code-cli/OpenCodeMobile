@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.opencode.mobile.data.backend.AgentItem
 import com.opencode.mobile.data.backend.ProjectItem
 import com.opencode.mobile.ui.theme.ThemeMode
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -26,28 +25,40 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun pop() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
 
     // ---- server & connection state
-    val activeServer by repo.activeProfile.collectAsState(null)
-    val connectionState by repo.connectionState.collectAsState(ConnectionState.OFFLINE)
+    var activeServer by mutableStateOf<ServerProfile?>(null)
+        private set
+    var connectionState by mutableStateOf(ConnectionState.OFFLINE)
+        private set
     var isConnectingServer by mutableStateOf(false)
     var serverConnectError by mutableStateOf<String?>(null)
 
     // ---- projects / agents / models
-    private val rawProjects by repo.projects.collectAsState(emptyList())
-    val projects: List<String> get() = rawProjects.map { it.name }.ifEmpty { listOf("root") }
+    var rawProjects by mutableStateOf<List<ProjectItem>>(emptyList())
+        private set
+    var projects by mutableStateOf<List<String>>(listOf("root"))
+        private set
     var selectedProject by mutableStateOf("root")
 
-    private val rawAgents by repo.agents.collectAsState(emptyList())
-    val agents: List<String> get() = rawAgents.filter { it.mode == "primary" && !it.hidden }.map { it.name }.ifEmpty { listOf("Build") }
+    var rawAgents by mutableStateOf<List<AgentItem>>(emptyList())
+        private set
+    var agents by mutableStateOf<List<String>>(listOf("Build"))
+        private set
     var agent by mutableStateOf("Build")
 
-    val rawModels by repo.models.collectAsState(emptyList())
-    val defaultModel by repo.defaultModel.collectAsState(null)
+    var rawModels by mutableStateOf<List<ModelOption>>(emptyList())
+        private set
+    var defaultModel by mutableStateOf<ModelOption?>(null)
+        private set
     var model by mutableStateOf(ModelOption("DeepSeek V4.1 Flash (Free)", "Tokenharbor", "deepseek-v4.1-flash:free", "High"))
 
-    val commands by repo.commands.collectAsState(emptyList())
-    val permissions by repo.permissions.collectAsState(emptyList())
-    val forms by repo.forms.collectAsState(emptyList())
-    val isVoiceSupported by repo.isVoiceSupported.collectAsState(false)
+    var commands by mutableStateOf<List<SlashCommand>>(emptyList())
+        private set
+    var permissions by mutableStateOf<List<PermissionRequest>>(emptyList())
+        private set
+    var forms by mutableStateOf<List<QuestionForm>>(emptyList())
+        private set
+    var isVoiceSupported by mutableStateOf(false)
+        private set
 
     // ---- settings & preferences
     var themeMode by mutableStateOf(ThemeMode.System)
@@ -85,6 +96,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
 
     init {
+        viewModelScope.launch { repo.activeProfile.collect { activeServer = it } }
+        viewModelScope.launch { repo.connectionState.collect { connectionState = it } }
+        viewModelScope.launch {
+            repo.projects.collect { list ->
+                rawProjects = list
+                projects = list.map { it.name }.ifEmpty { listOf("root") }
+            }
+        }
+        viewModelScope.launch {
+            repo.agents.collect { list ->
+                rawAgents = list
+                agents = list.filter { it.mode == "primary" && !it.hidden }.map { it.name }.ifEmpty { listOf("Build") }
+            }
+        }
+        viewModelScope.launch { repo.models.collect { rawModels = it } }
+        viewModelScope.launch {
+            repo.defaultModel.collect { def ->
+                defaultModel = def
+                if (def != null && model.modelId.isEmpty()) model = def
+            }
+        }
+        viewModelScope.launch { repo.commands.collect { commands = it } }
+        viewModelScope.launch { repo.permissions.collect { permissions = it } }
+        viewModelScope.launch { repo.forms.collect { forms = it } }
+        viewModelScope.launch { repo.isVoiceSupported.collect { isVoiceSupported = it } }
+
         // Observe sessions from repository
         viewModelScope.launch {
             repo.sessions.collect { list ->
@@ -102,15 +139,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             repo.messages.collect { map ->
                 messages.clear()
                 messages.putAll(map)
-            }
-        }
-
-        // Observe default model
-        viewModelScope.launch {
-            repo.defaultModel.collect { def ->
-                if (def != null && model.modelId.isEmpty()) {
-                    model = def
-                }
             }
         }
 
@@ -143,9 +171,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 var password = pass.trim()
                 if (pairingCode?.isNotBlank() == true) {
-                    val pairRes = repo.serverStore.raceAddresses(listOf(trimmedUrl), "")
-                    // Try redeem pairing code
-                    val tokenRes = repo.v2Backend.redeemPairing(trimmedUrl, pairingCode)
+                    val tokenRes = repo.redeemPairing(trimmedUrl, pairingCode)
                     if (tokenRes.isSuccess) {
                         password = tokenRes.getOrThrow()
                     }
